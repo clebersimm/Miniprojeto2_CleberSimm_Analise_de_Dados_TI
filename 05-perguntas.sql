@@ -19,7 +19,28 @@
 --  dias_total_ate_entrega e o processo inteiro, nao um dos quatro intervalos.
 
 -- >>> ESCREVA AQUI a consulta da P1
-
+SELECT
+    l.porte,
+    ROUND(AVG(f.dias_integracao_separacao)::numeric, 2) AS media_integracao_separacao,
+    ROUND(AVG(f.dias_separacao_nota)::numeric, 2)        AS media_separacao_nota,
+    ROUND(AVG(f.dias_nota_despacho)::numeric, 2)         AS media_nota_despacho,
+    ROUND(AVG(f.dias_despacho_entrega)::numeric, 2)      AS media_despacho_entrega,
+    ROUND(AVG(f.dias_total_ate_entrega)::numeric, 2)     AS media_total_ate_entrega
+FROM fato_pedido f
+JOIN dim_loja l ON l.sk_loja = f.sk_loja
+WHERE f.sk_loja <> -1
+GROUP BY l.porte
+UNION ALL
+SELECT
+    'Total Rede' AS porte,
+    ROUND(AVG(f.dias_integracao_separacao)::numeric, 2),
+    ROUND(AVG(f.dias_separacao_nota)::numeric, 2),
+    ROUND(AVG(f.dias_nota_despacho)::numeric, 2),
+    ROUND(AVG(f.dias_despacho_entrega)::numeric, 2),
+    ROUND(AVG(f.dias_total_ate_entrega)::numeric, 2)
+FROM fato_pedido f
+WHERE f.sk_loja <> -1
+ORDER BY media_total_ate_entrega DESC;
 
 -- =====================================================================================
 --  P2 - QUAL CATEGORIA CONCENTRA O FATURAMENTO?
@@ -29,7 +50,32 @@
 --  subconsulta com o faturamento da rede como denominador.
 
 -- >>> ESCREVA AQUI a consulta da P2
-
+SELECT
+    c.nome_categoria,
+    ROUND(SUM(f.vl_liquido), 2) AS faturamento,
+    ROUND(
+        (SUM(f.vl_liquido) * 100.0) / (SELECT SUM(vl_liquido) FROM fato_pedido),
+        2
+    ) AS perc_faturamento
+FROM fato_pedido f
+JOIN dim_categoria c ON c.sk_categoria = f.sk_categoria
+GROUP BY c.nome_categoria
+ORDER BY faturamento DESC;
+-- Cruzamento por porte de loja para verificar a categoria campea
+SELECT
+    l.porte,
+    c.nome_categoria,
+    ROUND(SUM(f.vl_liquido), 2) AS faturamento,
+    ROUND(
+        (SUM(f.vl_liquido) * 100.0) / SUM(SUM(f.vl_liquido)) OVER (PARTITION BY l.porte),
+        2
+    ) AS perc_porte
+FROM fato_pedido f
+JOIN dim_categoria c ON c.sk_categoria = f.sk_categoria
+JOIN dim_loja l ON l.sk_loja = f.sk_loja
+WHERE f.sk_loja <> -1
+GROUP BY l.porte, c.nome_categoria
+ORDER BY l.porte, faturamento DESC;
 
 -- =====================================================================================
 --  P3 - O DESCONTO FUNCIONA IGUAL EM TODO CANAL?
