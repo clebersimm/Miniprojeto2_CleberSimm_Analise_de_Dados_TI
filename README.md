@@ -185,6 +185,127 @@ total_dt_separacao_estoque|total_nota_fiscal|total_despacho|total_entrega_client
 ```
 
 
+## Tarefa 2: Tatamento  && Tarefa 3: Contruir as dimensões
+
+As tarefas 2 e 3 podem ser resolvidas em uma única tarefa, pois o tratamento de dados está diretamente relacionado com a atividade de popular as tabelas de dimensão.
+
+Iniciando o processo com a dim_categoria, com inclusão da categoria "Nao Informado", depois disso executado INSERT com select na tabela. Para confirmar a criação correta é executado o SQL abaixo: 
+
+```sql
+SELECT 'dim_categoria'     AS tabela, COUNT(*) AS linhas,
+       '38 no PostgreSQL - varia por banco' AS esperado FROM dim_categoria
+UNION ALL SELECT 'dim_praca',         COUNT(*), '13  (12 pracas + a -1)' FROM dim_praca
+UNION ALL SELECT 'bridge_loja_praca', COUNT(*), '48' FROM bridge_loja_praca;
+```
+
+Com resultado:   
+
+```sql
+tabela           |linhas|esperado                          |
+-----------------+------+----------------------------------+
+dim_categoria    |    38|38 no PostgreSQL - varia por banco|
+dim_praca        |    13|13  (12 pracas + a -1)            |
+bridge_loja_praca|    48|48                                |
+```
+
+Consulta de categorias padronizadas: 
+
+```sql
+SELECT COUNT(DISTINCT nome_categoria) AS categorias_padronizadas,
+       '8 = as 7 categorias + a linha -1' AS esperado FROM dim_categoria;
+```
+
+Resultado: 
+
+```sql
+categorias_padronizadas|esperado                        |
+-----------------------+--------------------------------+
+                      8|8 = as 7 categorias + a linha -1|
+```
+
+Consulta para verificar resultados vazios: 
+
+```sql
+SELECT categoria_origem, nome_categoria FROM dim_categoria
+WHERE nome_categoria = 'Nao Informado' AND sk_categoria <> -1;
+```
+
+Resultado: 
+
+```sql
+categoria_origem|nome_categoria|
+----------------+--------------+
+```
+
+Consulta para verificar ordem do case:   
+
+```sql
+-- Ordem do CASE, teste 1: "Racao Medicamentosa" deve ser Medicamento.
+-- Se aparecer 'Racao' na segunda coluna, o CASE testou RA antes de MED.
+SELECT categoria_origem, nome_categoria, 'Medicamento' AS esperado
+FROM dim_categoria WHERE UPPER(categoria_origem) LIKE '%MEDICAMENTOSA%';
+```
+Resultado:   
+
+```sql
+categoria_origem   |nome_categoria|esperado   |
+-------------------+--------------+-----------+
+Racao Medicamentosa|Medicamento   |Medicamento|
+Ração Medicamentosa|Medicamento   |Medicamento|
+```
+
+Consulta da tabela ponte:  
+
+```sql
+-- A ponte: o fator deve somar 1,00 em cada loja. A consulta deve voltar VAZIA.
+SELECT cod_loja, ROUND(SUM(fator_publico), 4) AS soma_dos_fatores
+FROM bridge_loja_praca GROUP BY cod_loja
+HAVING ROUND(SUM(fator_publico), 4) <> 1;
+```
+
+Resultado:   
+
+```sql
+cod_loja|soma_dos_fatores|
+--------+----------------+
+```
+
+Consulta pelas lojas e pracas:  
+
+```sql
+-- As 32 lojas devem estar na ponte, e toda praca deve ter pelo menos uma loja.
+SELECT 'lojas na ponte' AS teste, COUNT(DISTINCT cod_loja) AS valor, '32' AS esperado
+FROM bridge_loja_praca
+UNION ALL SELECT 'pracas na ponte', COUNT(DISTINCT sk_praca), '12' FROM bridge_loja_praca;
+```
+
+Resultado: 
+
+```sql
+teste          |valor|esperado|
+---------------+-----+--------+
+lojas na ponte |   32|32      |
+pracas na ponte|   12|12      |
+```
+
+Consulta linha -1 nas dimensões:   
+
+```sql
+-- Toda dimensao precisa da linha -1. As duas devem aparecer aqui.
+SELECT 'dim_categoria' AS dimensao, COUNT(*) AS tem_a_linha_menos_1
+FROM dim_categoria WHERE sk_categoria = -1
+UNION ALL SELECT 'dim_praca',       COUNT(*) FROM dim_praca       WHERE sk_praca = -1;
+```
+
+Resultado: 
+
+```sql
+dimensao     |tem_a_linha_menos_1|
+-------------+-------------------+
+dim_categoria|                  1|
+dim_praca    |                  1|
+```
+
 ### Configuração do ambiente   
 
 Executando o banco de dados utilizando container do PostgreSQL - 16.    
