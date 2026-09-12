@@ -425,7 +425,8 @@ CREATE TABLE fato_pedido (
 -- =====================================================================================
 --  CONFERENCIA DO QUE VEIO PRONTO
 -- =====================================================================================
+/*
 SELECT 'dim_tempo' AS tabela, COUNT(*) AS linhas, '236  (235 dias + a -1)' AS esperado
 FROM dim_tempo
 UNION ALL SELECT 'dim_loja', COUNT(*), '33  (32 lojas + a -1)' FROM dim_loja;
-
+*/
