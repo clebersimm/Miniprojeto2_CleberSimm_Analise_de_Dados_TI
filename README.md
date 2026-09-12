@@ -306,6 +306,22 @@ dim_categoria|                  1|
 dim_praca    |                  1|
 ```
 
+### Tarefa 4: Tabela Fato   
+
+Execução da tarefa 4, populando a tabela fato.   
+
+1. Foi realizado um único INSERT ... SELECT para carregar a tabela fato_pedido a partir dos pedidos armazenados em stg_pedido.
+2. As datas foram convertidas para formatos padronizados, gerando chaves substitutas no padrão numérico AAAAMMDD.
+3. As lojas e categorias foram relacionadas às respectivas dimensões utilizando LEFT JOIN, preservando todos os pedidos carregados.
+4. Nomes de lojas foram normalizados, removendo acentos, espaços duplicados, sufixos estaduais e corrigindo variações cadastrais.
+5. Registros sem correspondência dimensional receberam a chave -1, evitando valores nulos nas chaves estrangeiras.
+6. Os campos de desconto e canal de pedido foram padronizados mediante regras CASE, classificando diferentes formatos de preenchimento.
+7. Quantidades e valores monetários foram convertidos para tipos numéricos, tratando registros vazios, hífens, símbolos monetários e separadores brasileiros.
+8. Foram calculados os intervalos em dias entre integração, separação, emissão da nota, despacho e entrega ao cliente.
+9. Registros sem datas necessárias permaneceram com intervalos nulos, evitando interpretações incorretas de etapas não realizadas.
+10. Ao final, foram executadas conferências para validar a quantidade de pedidos, chaves estrangeiras, datas, canais e possíveis períodos negativos.
+
+
 ### Configuração do ambiente   
 
 Executando o banco de dados utilizando container do PostgreSQL - 16.    
