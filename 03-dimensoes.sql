@@ -32,7 +32,35 @@
 --  teste MED antes de RA. Compare em UPPER e use trechos SEM acento.
 
 -- >>> ESCREVA AQUI: a linha -1 e o INSERT ... SELECT da dim_categoria
+INSERT INTO dim_categoria (sk_categoria, categoria_origem, nome_categoria, grupo_categoria)
+VALUES (-1, 'Nao Informado', 'Nao Informado', 'Nao Informado');
 
+-- INSERT com select para categoria Carga das 37 grafias da origem
+INSERT INTO dim_categoria (categoria_origem, nome_categoria, grupo_categoria)
+SELECT DISTINCT
+    "CategoriaProduto" AS categoria_origem,
+    CASE 
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%MED%'   THEN 'Medicamento'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%PETISC%' THEN 'Petisco'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%RA%'     THEN 'Racao'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%HIG%'    THEN 'Higiene'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%BRINQ%'  THEN 'Brinquedo'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%ACESS%'  THEN 'Acessorio'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%SERV%'   THEN 'Servico'
+        ELSE 'Nao Informado'
+    END AS nome_categoria,
+    CASE 
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%MED%'   THEN 'Saude e Higiene'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%PETISC%' THEN 'Alimentacao'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%RA%'     THEN 'Alimentacao'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%HIG%'    THEN 'Saude e Higiene'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%BRINQ%'  THEN 'Bem-estar'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%ACESS%'  THEN 'Bem-estar'
+        WHEN TRANSLATE(UPPER("CategoriaProduto"), 'ÁÀÂÃÉÊÍÓÔÕÚÜÇ', 'AAAAEEIOOOUUC') LIKE '%SERV%'   THEN 'Bem-estar'
+        ELSE 'Nao Informado'
+    END AS grupo_categoria
+FROM stg_pedido
+WHERE "CategoriaProduto" IS NOT NULL AND "CategoriaProduto" <> '';
 
 -- =====================================================================================
 --  DIM_PRACA  +  BRIDGE_LOJA_PRACA
@@ -43,7 +71,19 @@
 --  milhar, tire-o antes do CAST.
 
 -- >>> ESCREVA AQUI: a linha -1 e o INSERT ... SELECT da dim_praca
+INSERT INTO dim_praca (sk_praca, cod_praca, nome_praca, regional, domicilios_com_pet)
+VALUES (-1, 'N/I', 'Nao Informado', 'Nao Informado', NULL);
 
+-- INSERT com select para Carga das 12 pracas
+INSERT INTO dim_praca (cod_praca, nome_praca, regional, domicilios_com_pet)
+SELECT
+    "CodPraca" AS cod_praca,
+    MAX("NomePraca") AS nome_praca,
+    MAX("Regional") AS regional,
+    MAX(CAST(REPLACE("DomiciliosComPet", '.', '') AS INTEGER)) AS domicilios_com_pet
+FROM stg_loja_praca
+GROUP BY "CodPraca"
+ORDER BY "CodPraca";
 
 -- -------------------------------------------------------------------------------------
 --  A TABELA PONTE
@@ -53,8 +93,51 @@
 --  1,00). A ponte usa o COD DA LOJA, nao a sk_loja.
 
 -- >>> ESCREVA AQUI: o INSERT ... SELECT da bridge_loja_praca
-
+INSERT INTO bridge_loja_praca (cod_loja, sk_praca, fator_publico)
+SELECT
+    lp."CodLoja" AS cod_loja,
+    p.sk_praca,
+    CAST(lp."PercentualPublico" AS DECIMAL(6,4)) AS fator_publico
+FROM stg_loja_praca lp
+JOIN dim_praca p ON p.cod_praca = lp."CodPraca";
 
 -- =====================================================================================
 --  Confira o resultado com o 00-conferencia.sql (bloco "DEPOIS DO 03").
 -- =====================================================================================
+
+-- Bloco de consultas 03 do arquivo 00-conferencia.sql
+
+SELECT 'dim_categoria'     AS tabela, COUNT(*) AS linhas,
+       '38 no PostgreSQL - varia por banco' AS esperado FROM dim_categoria
+UNION ALL SELECT 'dim_praca',         COUNT(*), '13  (12 pracas + a -1)' FROM dim_praca
+UNION ALL SELECT 'bridge_loja_praca', COUNT(*), '48' FROM bridge_loja_praca;
+
+-- ESTE e o teste que vale nota, e ele NAO muda de banco para banco.
+SELECT COUNT(DISTINCT nome_categoria) AS categorias_padronizadas,
+       '8 = as 7 categorias + a linha -1' AS esperado FROM dim_categoria;
+
+-- Se aparecer 'Nao Informado' numa linha que nao e a -1, algum WHEN do CASE nao
+-- classificou a grafia. A consulta deve voltar VAZIA.
+SELECT categoria_origem, nome_categoria FROM dim_categoria
+WHERE nome_categoria = 'Nao Informado' AND sk_categoria <> -1;
+
+-- Ordem do CASE, teste 1: "Racao Medicamentosa" deve ser Medicamento.
+-- Se aparecer 'Racao' na segunda coluna, o CASE testou RA antes de MED.
+SELECT categoria_origem, nome_categoria, 'Medicamento' AS esperado
+FROM dim_categoria WHERE UPPER(categoria_origem) LIKE '%MEDICAMENTOSA%';
+
+
+-- A ponte: o fator deve somar 1,00 em cada loja. A consulta deve voltar VAZIA.
+SELECT cod_loja, ROUND(SUM(fator_publico), 4) AS soma_dos_fatores
+FROM bridge_loja_praca GROUP BY cod_loja
+HAVING ROUND(SUM(fator_publico), 4) <> 1;
+
+-- As 32 lojas devem estar na ponte, e toda praca deve ter pelo menos uma loja.
+SELECT 'lojas na ponte' AS teste, COUNT(DISTINCT cod_loja) AS valor, '32' AS esperado
+FROM bridge_loja_praca
+UNION ALL SELECT 'pracas na ponte', COUNT(DISTINCT sk_praca), '12' FROM bridge_loja_praca;
+
+-- Toda dimensao precisa da linha -1. As duas devem aparecer aqui.
+SELECT 'dim_categoria' AS dimensao, COUNT(*) AS tem_a_linha_menos_1
+FROM dim_categoria WHERE sk_categoria = -1
+UNION ALL SELECT 'dim_praca',       COUNT(*) FROM dim_praca       WHERE sk_praca = -1;
